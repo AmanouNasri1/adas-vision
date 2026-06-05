@@ -5,10 +5,11 @@ Usage:
     python apps/run_video_demo.py --input <clip> --device cpu
     python apps/run_video_demo.py --input <clip> --benchmark
 
-Phase A7 adds a classical-CV ego-lane / drivable-area overlay. Pipeline per
-frame: detect -> track -> estimate lane -> draw (lane, tracks, frame number) ->
-write. Risk scoring follows in A8. The output directory comes from
-configs/paths.yaml (external HDD when mounted, else the in-repo outputs/ folder).
+Phase A8 adds pseudo-distance risk scoring: each tracked object gets a 0-100
+risk score and a LOW/MEDIUM/HIGH level (proxy from 2-D box geometry, never real
+depth). Pipeline per frame: detect -> track -> lane -> risk -> draw -> write.
+The output directory comes from configs/paths.yaml (external HDD when mounted,
+else the in-repo outputs/ folder).
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ if str(SRC) not in sys.path:
 from adas_workbench.input.video_loader import VideoLoader  # noqa: E402
 from adas_workbench.perception.detector import Detector  # noqa: E402
 from adas_workbench.perception.lane_detector import LaneDetector  # noqa: E402
+from adas_workbench.risk.risk_estimator import RiskEstimator  # noqa: E402
 from adas_workbench.tracking.tracker import Tracker  # noqa: E402
 from adas_workbench.utils.config import (  # noqa: E402
     load_config,
@@ -37,7 +39,7 @@ from adas_workbench.utils.config import (  # noqa: E402
 from adas_workbench.visualization.overlay import (  # noqa: E402
     draw_frame_number,
     draw_lane,
-    draw_tracks,
+    draw_risk,
 )
 
 
@@ -93,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     config_dir = Path(args.config_dir)
     detector_cfg = load_config(config_dir / "detector.yaml")
     tracker_cfg = load_config(config_dir / "tracker.yaml")
+    risk_cfg = load_config(config_dir / "risk.yaml")
     lane_cfg = load_config(config_dir / "lane.yaml") if (config_dir / "lane.yaml").is_file() else {}
     device = select_device(args.device or detector_cfg.get("model", {}).get("device", "auto"))
 
@@ -108,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with VideoLoader(input_path) as loader:
         meta = loader.meta
+        risk_estimator = RiskEstimator(risk_cfg, fps=meta.fps)
         print(
             f"Input : {meta.path}\n"
             f"        {meta.width}x{meta.height} @ {meta.fps:.2f} fps, "
@@ -128,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         processed = 0
         total_detections = 0
         seen_ids: set[int] = set()
+        risk_hist = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+        max_score, max_score_frame = 0.0, -1
+        prev_state: dict[int, list[float]] = {}
         total = meta.frame_count if meta.frame_count > 0 else None
         for frame_id, frame in tqdm(
             loader.frames(), total=total, unit="f", desc="Processing", disable=None
@@ -136,13 +143,23 @@ def main(argv: list[str] | None = None) -> int:
             detections = detector.detect(frame, frame_id)
             tracks = tracker.update(detections, frame_id)
             lane_info = lane_detector.estimate(frame)
+            risks = risk_estimator.score(tracks, lane_info, prev_state)
+
             total_detections += len(detections)
             seen_ids.update(t["track_id"] for t in tracks)
-            # --- overlays (lane underneath, then boxes, then HUD text) ---
+            for r in risks:
+                risk_hist[r["risk_level"]] = risk_hist.get(r["risk_level"], 0) + 1
+                if r["risk_score"] > max_score:
+                    max_score, max_score_frame = r["risk_score"], frame_id
+
+            # --- overlays (lane underneath, then risk boxes, then HUD text) ---
             draw_lane(frame, lane_info)
-            draw_tracks(frame, tracks)
+            draw_risk(frame, risks)
             draw_frame_number(frame, frame_id)
             writer.write(frame)
+
+            # carry current boxes forward for the next frame's growth/TTC proxy
+            prev_state = {t["track_id"]: t["bbox"] for t in tracks}
             processed += 1
         writer.release()
         elapsed = time.perf_counter() - start
@@ -152,7 +169,10 @@ def main(argv: list[str] | None = None) -> int:
         f"\nDone.\n"
         f"Output: {output_path}\n"
         f"Frames: {processed} | Detections: {total_detections} | "
-        f"Unique tracks: {len(seen_ids)} | {elapsed:.1f}s (~{avg_fps:.1f} fps, {device})"
+        f"Unique tracks: {len(seen_ids)} | {elapsed:.1f}s (~{avg_fps:.1f} fps, {device})\n"
+        f"Risk track-frames  LOW: {risk_hist['LOW']}  "
+        f"MEDIUM: {risk_hist['MEDIUM']}  HIGH: {risk_hist['HIGH']}  "
+        f"| max score {max_score:.0f} @frame {max_score_frame}"
     )
     return 0
 

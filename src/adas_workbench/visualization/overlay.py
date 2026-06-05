@@ -35,6 +35,13 @@ _DEFAULT_COLOR = (200, 200, 200)
 _LANE_FILL = (0, 200, 0)
 _LANE_ALPHA = 0.28
 
+# Risk-level colours (BGR): green / amber / red.
+_RISK_COLORS: dict[str, tuple[int, int, int]] = {
+    "LOW": (0, 200, 0),
+    "MEDIUM": (0, 165, 255),
+    "HIGH": (0, 0, 255),
+}
+
 
 def _color_for(class_name: str) -> tuple[int, int, int]:
     return _CLASS_COLORS.get(class_name, _DEFAULT_COLOR)
@@ -66,7 +73,7 @@ def _draw_box_label(
     label: str,
     color: tuple[int, int, int],
 ) -> None:
-    """Draw a coloured box with a filled label tab (shared by detections/tracks)."""
+    """Draw a coloured box with a filled label tab (shared by detections/tracks/risk)."""
     x1, y1, x2, y2 = (int(round(v)) for v in bbox)
     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
     (tw, th), baseline = cv2.getTextSize(label, _FONT, 0.5, 1)
@@ -123,6 +130,23 @@ def draw_lane(frame: np.ndarray, lane_info: dict[str, Any]) -> np.ndarray:
 
 
 def draw_risk(frame: np.ndarray, risk_results: list[dict[str, Any]]) -> np.ndarray:
-    """Colour-code tracks by risk level and label the proxy score (Phase A8)."""
-    # TODO(A8)
-    raise NotImplementedError
+    """Colour-code tracks by risk level and label the proxy score (Phase A8).
+
+    Boxes are green/amber/red for LOW/MEDIUM/HIGH. A footer keeps the demo
+    honest: the score is a proxy from 2-D boxes, not real depth/TTC.
+    """
+    for res in risk_results:
+        color = _RISK_COLORS.get(res["risk_level"], _DEFAULT_COLOR)
+        label = (
+            f'ID {res["track_id"]} {res["class_name"]} '
+            f'{res["risk_level"]} {res["risk_score"]:.0f}'
+        )
+        _draw_box_label(frame, res["bbox"], label, color)
+    _put_label(
+        frame,
+        "pseudo-risk: proxy from 2-D boxes, not real depth/TTC",
+        (12, frame.shape[0] - 12),
+        scale=0.45,
+        color=(210, 210, 210),
+    )
+    return frame

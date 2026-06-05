@@ -11,27 +11,34 @@ levels:
   medium_max: 70    # 31 .. 70  -> MEDIUM
                     # 71 .. 100 -> HIGH
 
-# Relative weight per object class (more vulnerable -> higher weight).
+# Relative weight per object class (more vulnerable / dangerous -> higher).
 # CLAUDE.md ordering: person > bicycle > car > traffic light.
 class_weights:
   person: 1.0
-  bicycle: 0.9
-  motorcycle: 0.85
-  car: 0.7
-  bus: 0.7
-  truck: 0.7
-  traffic light: 0.3
-  stop sign: 0.3
-  default: 0.5
+  bicycle: 0.95
+  motorcycle: 0.95
+  truck: 0.95
+  bus: 0.92
+  car: 0.92
+  stop sign: 0.50
+  traffic light: 0.45
+  default: 0.78
 
-# Contribution of each cue to the raw risk (before scaling to 0-100).
+# Contribution of each cue to the raw risk (weights sum to 1.0).
+# Closeness + lane-overlap dominate (stable geometric cues); growth/TTC refine
+# (they are noisier frame-to-frame from a 2-D box).
 cues:
-  bbox_area_weight: 0.35     # closeness proxy: larger box ~ closer
-  bbox_growth_weight: 0.25   # approach cue: fast-growing box ~ approaching
-  lane_overlap_weight: 0.25  # relevance: object inside the ego lane
-  ttc_proxy_weight: 0.15     # pseudo-TTC: bbox_height / bbox_height_change_rate
+  bbox_area_weight: 0.50     # closeness proxy: larger box ~ closer
+  lane_overlap_weight: 0.32  # relevance: object inside the ego lane
+  bbox_growth_weight: 0.12   # approach cue: fast-growing box ~ approaching
+  ttc_proxy_weight: 0.06     # pseudo-TTC: bbox_height / bbox_height_change_rate
+
+# Cue normalization: turns raw geometry into [0,1] proxies (no magic numbers in code).
+normalize:
+  area_full_frac: 0.08       # bbox area = 8% of frame -> closeness 1.0
+  growth_full_rate: 0.05     # +5% bbox-height growth/frame -> approach 1.0
 
 # Pseudo-TTC proxy guardrails (these are NOT real seconds).
 ttc_proxy:
   min_height_change: 0.5     # px/frame; below this, treat as "not approaching"
-  clamp_seconds: 10.0        # cap the proxy to a sane range
+  clamp_seconds: 10.0        # pseudo-TTC risk saturates within this window
