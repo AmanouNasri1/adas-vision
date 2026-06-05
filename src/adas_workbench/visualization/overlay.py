@@ -36,6 +36,14 @@ def _color_for(class_name: str) -> tuple[int, int, int]:
     return _CLASS_COLORS.get(class_name, _DEFAULT_COLOR)
 
 
+def _id_color(track_id: int) -> tuple[int, int, int]:
+    """Deterministic vivid BGR colour per track id (so an id keeps its colour)."""
+    hue = (int(track_id) * 47) % 180  # spread ids around the hue wheel
+    hsv = np.uint8([[[hue, 200, 255]]])
+    b, g, r = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0][0]
+    return int(b), int(g), int(r)
+
+
 def _put_label(
     frame: np.ndarray,
     text: str,
@@ -48,6 +56,24 @@ def _put_label(
     cv2.putText(frame, text, org, _FONT, scale, color, 2, cv2.LINE_AA)
 
 
+def _draw_box_label(
+    frame: np.ndarray,
+    bbox: list[float],
+    label: str,
+    color: tuple[int, int, int],
+) -> None:
+    """Draw a coloured box with a filled label tab (shared by detections/tracks)."""
+    x1, y1, x2, y2 = (int(round(v)) for v in bbox)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+    (tw, th), baseline = cv2.getTextSize(label, _FONT, 0.5, 1)
+    # Keep the label on-screen even when the box hugs the top edge.
+    y_top = max(y1, th + baseline + 4)
+    cv2.rectangle(frame, (x1, y_top - th - baseline - 4), (x1 + tw + 4, y_top), color, -1)
+    cv2.putText(
+        frame, label, (x1 + 2, y_top - baseline - 2), _FONT, 0.5, (0, 0, 0), 1, cv2.LINE_AA
+    )
+
+
 def draw_frame_number(frame: np.ndarray, frame_id: int) -> np.ndarray:
     """Overlay the frame number (the first overlay wired up, Phase A4)."""
     _put_label(frame, f"frame {frame_id}", (12, 34))
@@ -57,28 +83,21 @@ def draw_frame_number(frame: np.ndarray, frame_id: int) -> np.ndarray:
 def draw_detections(frame: np.ndarray, detections: list[Detection]) -> np.ndarray:
     """Draw class-labelled, confidence-annotated boxes (Phase A5)."""
     for det in detections:
-        x1, y1, x2, y2 = (int(round(v)) for v in det["bbox_xyxy"])
-        color = _color_for(det["class_name"])
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-
         label = f'{det["class_name"]} {det["confidence"]:.2f}'
-        (tw, th), baseline = cv2.getTextSize(label, _FONT, 0.5, 1)
-        # Keep the label on-screen even when the box hugs the top edge.
-        y_top = max(y1, th + baseline + 4)
-        cv2.rectangle(
-            frame, (x1, y_top - th - baseline - 4), (x1 + tw + 4, y_top), color, -1
-        )
-        cv2.putText(
-            frame, label, (x1 + 2, y_top - baseline - 2), _FONT, 0.5,
-            (0, 0, 0), 1, cv2.LINE_AA,
-        )
+        _draw_box_label(frame, det["bbox_xyxy"], label, _color_for(det["class_name"]))
     return frame
 
 
 def draw_tracks(frame: np.ndarray, tracks: list[Track]) -> np.ndarray:
-    """Draw boxes with persistent track ids (Phase A6)."""
-    # TODO(A6)
-    raise NotImplementedError
+    """Draw boxes with persistent track ids (Phase A6).
+
+    Each id keeps a stable colour, so the same object visibly carries the same
+    box colour + id across frames.
+    """
+    for trk in tracks:
+        label = f'ID {trk["track_id"]} {trk["class_name"]}'
+        _draw_box_label(frame, trk["bbox"], label, _id_color(trk["track_id"]))
+    return frame
 
 
 def draw_lane(frame: np.ndarray, lane_info: dict[str, Any]) -> np.ndarray:

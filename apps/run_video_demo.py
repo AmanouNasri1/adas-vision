@@ -5,11 +5,10 @@ Usage:
     python apps/run_video_demo.py --input <clip> --device cpu
     python apps/run_video_demo.py --input <clip> --benchmark
 
-Phase A5 adds YOLO object detection: each frame is detected (filtered to the
-ADAS classes), boxes/labels/confidences are drawn, then the frame number is
-overlaid and the frame is written out. Tracking / lane / risk stages follow in
-later phases. The output directory comes from configs/paths.yaml (external HDD
-when mounted, else the in-repo outputs/ folder).
+Phase A6 adds multi-object tracking: detections are matched across frames into
+persistent track ids, and the boxes/ids are drawn (each id keeps its colour).
+Lane / risk stages follow in later phases. The output directory comes from
+configs/paths.yaml (external HDD when mounted, else the in-repo outputs/ folder).
 """
 from __future__ import annotations
 
@@ -28,14 +27,15 @@ if str(SRC) not in sys.path:
 
 from adas_workbench.input.video_loader import VideoLoader  # noqa: E402
 from adas_workbench.perception.detector import Detector  # noqa: E402
+from adas_workbench.tracking.tracker import Tracker  # noqa: E402
 from adas_workbench.utils.config import (  # noqa: E402
     load_config,
     resolve_output_dir,
     select_device,
 )
 from adas_workbench.visualization.overlay import (  # noqa: E402
-    draw_detections,
     draw_frame_number,
+    draw_tracks,
 )
 
 
@@ -90,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
 
     config_dir = Path(args.config_dir)
     detector_cfg = load_config(config_dir / "detector.yaml")
+    tracker_cfg = load_config(config_dir / "tracker.yaml")
     device = select_device(args.device or detector_cfg.get("model", {}).get("device", "auto"))
 
     output_path = (
@@ -99,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Device: {device}")
     detector = Detector(detector_cfg, device=device)
+    tracker = Tracker(tracker_cfg)
 
     with VideoLoader(input_path) as loader:
         meta = loader.meta
@@ -121,13 +123,16 @@ def main(argv: list[str] | None = None) -> int:
         start = time.perf_counter()
         processed = 0
         total_detections = 0
+        seen_ids: set[int] = set()
         total = meta.frame_count if meta.frame_count > 0 else None
         for frame_id, frame in tqdm(
-            loader.frames(), total=total, unit="f", desc="Detecting", disable=None
+            loader.frames(), total=total, unit="f", desc="Tracking", disable=None
         ):
             detections = detector.detect(frame, frame_id)
+            tracks = tracker.update(detections, frame_id)
             total_detections += len(detections)
-            draw_detections(frame, detections)
+            seen_ids.update(t["track_id"] for t in tracks)
+            draw_tracks(frame, tracks)
             draw_frame_number(frame, frame_id)
             writer.write(frame)
             processed += 1
@@ -139,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         f"\nDone.\n"
         f"Output: {output_path}\n"
         f"Frames: {processed} | Detections: {total_detections} | "
-        f"{elapsed:.1f}s (~{avg_fps:.1f} fps, {device})"
+        f"Unique tracks: {len(seen_ids)} | {elapsed:.1f}s (~{avg_fps:.1f} fps, {device})"
     )
     return 0
 
