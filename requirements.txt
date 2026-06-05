@@ -1,0 +1,33 @@
+# ADAS Vision Workbench — Python dependencies (Python 3.10, Windows)
+#
+# Install inside an activated .venv (kept on C:):
+#     python -m pip install -r requirements.txt
+#
+# PyTorch is pinned to the CUDA 12.4 build that matches the dev machine
+# (NVIDIA RTX 3050). --extra-index-url lets pip pull the +cu124 wheels from
+# PyTorch's index while resolving everything else from PyPI in one command.
+#
+# CPU-only machine? Replace the two torch lines below with the plain CPU build
+# from https://pytorch.org/get-started/locally/ , then re-run the install.
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+# --- Deep learning / inference (CUDA 12.4 build) ---
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+
+# --- Detection / tracking models ---
+ultralytics==8.4.60
+
+# --- Computer vision & numerics ---
+opencv-python==4.13.0.92
+numpy==2.2.6
+pandas==2.3.3
+matplotlib==3.10.9
+
+# --- Config / utilities ---
+PyYAML==6.0.3
+tqdm==4.68.0
+
+# --- Dashboard (FastAPI + ASGI server) ---
+fastapi==0.136.3
+uvicorn[standard]==0.49.0

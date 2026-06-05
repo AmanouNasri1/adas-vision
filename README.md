@@ -5,9 +5,9 @@
 > lane/drivable-area estimation, a **pseudo-distance risk score**, event logs,
 > an annotated output video, a benchmark report, and a live FastAPI dashboard.
 
-**Status:** 🚧 Under construction — **Phase A1** (repo + virtual environment).
-This README is an intentional *skeleton*; sections fill in as the phased build
-progresses (see [Roadmap](#roadmap)).
+**Status:** 🚧 Under construction — **Phase A2 complete** (tooling + environment
+ready; CUDA PyTorch verified on an RTX 3050). This README is an intentional
+*skeleton*; sections fill in as the phased build progresses (see [Roadmap](#roadmap)).
 
 > ⚠️ **Honesty note (read this):** distance and time-to-collision (TTC) here are
 > **proxies** derived from 2-D bounding-box geometry — **not** real,
@@ -52,12 +52,26 @@ _(added in Phase A3)_.
 
 ## Installation
 
-_One clear, copy-pasteable command block will live here once dependencies are
-pinned (Phase A2). For now this is a placeholder._
+Windows + PowerShell. First install the prerequisites — **Python 3.10, Git, FFmpeg**
+(the Phase A0 `winget` commands are in [`CLAUDE.md`](CLAUDE.md)).
 
 ```powershell
-# (coming in Phase A2 — PyTorch, Ultralytics YOLO, OpenCV, FastAPI, ...)
+# 1) Clone and enter the repo
+git clone https://github.com/AmanouNasri1/adas-vision.git
+cd adas-vision
+
+# 2) Create and activate a virtual environment (kept on C:)
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 3) Install dependencies (pulls the CUDA 12.4 PyTorch build, ~2.5 GB)
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
+
+> **CPU-only machine?** `requirements.txt` pins the CUDA build for an NVIDIA GPU.
+> Swap the two `torch` lines for the CPU build from the
+> [PyTorch selector](https://pytorch.org/get-started/locally/), then re-run step 3.
 
 ---
 
@@ -117,10 +131,10 @@ Built in strict phases (see [`CLAUDE.md`](CLAUDE.md) for the full plan):
 
 | Phase | Milestone |
 | --- | --- |
-| A0 | Install tools (Git, Python 3.10, VS Code, FFmpeg) |
-| **A1** | **Repo + virtual environment ⬅ you are here** |
-| A2 | Install ML/CV packages |
-| A3 | Repository structure + docs |
+| A0 | ✅ Install tools (Git, Python 3.10, VS Code, FFmpeg) |
+| A1 | ✅ Repo + virtual environment |
+| A2 | ✅ Install ML/CV packages |
+| **A3** | **Repository structure + docs ⬅ next** |
 | A4 | Video input pipeline (no AI) |
 | A5 | Object detection (YOLO) |
 | A6 | Object tracking |
