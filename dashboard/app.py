@@ -27,6 +27,7 @@ SRC = REPO_ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from adas_workbench.explain.scene_explainer import explain_event, explain_scene  # noqa: E402
 from adas_workbench.utils.config import load_config, resolve_output_dir  # noqa: E402
 
 
@@ -73,14 +74,19 @@ def index() -> str:
 
 @app.get("/api/state")
 def api_state() -> JSONResponse:
-    """Latest run summary + most-recent events + last frame metrics."""
+    """Latest run summary + recent events (with explanations) + scene headline."""
     events = _read_csv_rows(DATA_DIR / "events.csv")
     frames = _read_csv_rows(DATA_DIR / "frame_metrics.csv")
+    recent = list(reversed(events[-15:]))
+    last_frame = frames[-1] if frames else {}
+    for event in recent:
+        event["explanation"] = explain_event(event)
     return JSONResponse(
         {
             "summary": _read_json(DATA_DIR / "scene_summary.json"),
-            "recent_events": list(reversed(events[-15:])),
-            "last_frame": frames[-1] if frames else {},
+            "recent_events": recent,
+            "last_frame": last_frame,
+            "headline": explain_scene(recent, last_frame),
             "has_frame": (DATA_DIR / "latest_frame.jpg").is_file(),
             "data_dir": str(DATA_DIR),
         }

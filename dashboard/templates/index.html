@@ -23,6 +23,7 @@
         current-frame risk:
         <span id="risk-badge" class="badge low">–</span>
       </div>
+      <div class="headline" id="headline">–</div>
     </section>
 
     <section class="metrics">
@@ -46,11 +47,10 @@
     </section>
 
     <section class="events-panel panel">
-      <h2>Event timeline (most recent)</h2>
-      <table>
-        <thead><tr><th>t (s)</th><th>frame</th><th>ID</th><th>class</th><th>risk</th><th>event</th></tr></thead>
-        <tbody id="events-body"><tr><td colspan="6">no events yet — run the demo first</td></tr></tbody>
-      </table>
+      <h2>Event explanations (most recent)</h2>
+      <ul id="events-list" class="explain-list">
+        <li class="muted">no events yet — run the demo first</li>
+      </ul>
     </section>
   </main>
 
@@ -69,14 +69,15 @@
       return "LOW";
     }
     function renderEvents(events) {
-      const body = document.getElementById("events-body");
+      const list = document.getElementById("events-list");
       if (!events.length) {
-        body.innerHTML = '<tr><td colspan="6">no events yet — run the demo first</td></tr>';
+        list.innerHTML = '<li class="muted">no events yet — run the demo first</li>';
         return;
       }
-      body.innerHTML = events.map(e => {
-        const cls = e.event === "brake_warning" ? "high" : "medium";
-        return `<tr class="${cls}"><td>${e.timestamp}</td><td>${e.frame}</td><td>${e.track_id}</td><td>${e.class}</td><td>${e.risk}</td><td>${e.event}</td></tr>`;
+      list.innerHTML = events.map(e => {
+        const lvl = e.event === "brake_warning" ? "high" : "medium";
+        const msg = e.explanation || `${e.class} #${e.track_id} — ${e.event}`;
+        return `<li class="ev ${lvl}"><span class="dot ${lvl}"></span><span class="t">${e.timestamp}s</span><span class="msg">${msg}</span></li>`;
       }).join("");
     }
     async function refresh() {
@@ -107,6 +108,7 @@
         badge.className = "badge " + lvl.toLowerCase();
 
         renderEvents(s.recent_events || []);
+        setText("headline", s.headline);
         if (s.has_frame) document.getElementById("frame-img").src = "/frame?t=" + Date.now();
         setText("data-dir", s.data_dir);
         setText("updated", new Date().toLocaleTimeString());
