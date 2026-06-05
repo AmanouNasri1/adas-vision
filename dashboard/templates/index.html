@@ -3,19 +3,117 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ADAS Vision Workbench</title>
+  <title>ADAS Vision Workbench — Dashboard</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <header>
-    <h1>ADAS Vision Workbench</h1>
-    <p class="subtitle">Live perception dashboard — placeholder (Phase A10)</p>
+    <div>
+      <h1>ADAS Vision Workbench</h1>
+      <p class="subtitle">Live perception dashboard · pseudo-distance risk (proxy, no real depth)</p>
+    </div>
+    <div class="status">updated <span id="updated">–</span></div>
   </header>
 
-  <!-- TODO(A10): panels — latest annotated frame, FPS, object count,
-       tracked objects, risk level, event timeline, summary metrics. -->
   <main>
-    <p>Dashboard panels are implemented in Phase A10.</p>
+    <section class="frame-panel panel">
+      <h2>Latest annotated frame</h2>
+      <img id="frame-img" alt="latest annotated frame" />
+      <div class="risk-line">
+        current-frame risk:
+        <span id="risk-badge" class="badge low">–</span>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <div class="card"><span class="k">Device</span><span class="v" id="m-device">–</span></div>
+      <div class="card"><span class="k">Avg FPS</span><span class="v" id="m-fps">–</span></div>
+      <div class="card"><span class="k">Frames</span><span class="v" id="m-frames">–</span></div>
+      <div class="card"><span class="k">Duration</span><span class="v" id="m-duration">–</span></div>
+      <div class="card"><span class="k">Detections</span><span class="v" id="m-detections">–</span></div>
+      <div class="card"><span class="k">Unique tracks</span><span class="v" id="m-tracks">–</span></div>
+      <div class="card"><span class="k">Max risk</span><span class="v" id="m-maxrisk">–</span></div>
+      <div class="card"><span class="k">Objects (last frame)</span><span class="v" id="m-objs">–</span></div>
+    </section>
+
+    <section class="risk-panel panel">
+      <h2>Risk distribution (track-frames)</h2>
+      <div class="risk-bars">
+        <div class="risk-row"><span class="lbl low">LOW</span><span class="bar"><span id="bar-low" class="fill low"></span></span><span id="r-low" class="num">0</span></div>
+        <div class="risk-row"><span class="lbl medium">MEDIUM</span><span class="bar"><span id="bar-medium" class="fill medium"></span></span><span id="r-medium" class="num">0</span></div>
+        <div class="risk-row"><span class="lbl high">HIGH</span><span class="bar"><span id="bar-high" class="fill high"></span></span><span id="r-high" class="num">0</span></div>
+      </div>
+    </section>
+
+    <section class="events-panel panel">
+      <h2>Event timeline (most recent)</h2>
+      <table>
+        <thead><tr><th>t (s)</th><th>frame</th><th>ID</th><th>class</th><th>risk</th><th>event</th></tr></thead>
+        <tbody id="events-body"><tr><td colspan="6">no events yet — run the demo first</td></tr></tbody>
+      </table>
+    </section>
   </main>
+
+  <footer>
+    Data: <span id="data-dir">–</span> · Distance / TTC are 2-D bounding-box proxies, not real depth.
+  </footer>
+
+  <script>
+    function setText(id, v) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = (v === null || v === undefined) ? "–" : v;
+    }
+    function currentLevel(lf) {
+      if (+(lf.high || 0) > 0) return "HIGH";
+      if (+(lf.medium || 0) > 0) return "MEDIUM";
+      return "LOW";
+    }
+    function renderEvents(events) {
+      const body = document.getElementById("events-body");
+      if (!events.length) {
+        body.innerHTML = '<tr><td colspan="6">no events yet — run the demo first</td></tr>';
+        return;
+      }
+      body.innerHTML = events.map(e => {
+        const cls = e.event === "brake_warning" ? "high" : "medium";
+        return `<tr class="${cls}"><td>${e.timestamp}</td><td>${e.frame}</td><td>${e.track_id}</td><td>${e.class}</td><td>${e.risk}</td><td>${e.event}</td></tr>`;
+      }).join("");
+    }
+    async function refresh() {
+      try {
+        const r = await fetch("/api/state", { cache: "no-store" });
+        const s = await r.json();
+        const sum = s.summary || {}, lf = s.last_frame || {};
+        setText("m-device", sum.device);
+        setText("m-fps", sum.processing_avg_fps);
+        setText("m-frames", sum.frames_processed);
+        setText("m-duration", sum.duration_s != null ? sum.duration_s + " s" : null);
+        setText("m-detections", sum.total_detections);
+        setText("m-tracks", sum.unique_tracks);
+        setText("m-maxrisk", sum.max_risk_score);
+        setText("m-objs", lf.tracks != null ? lf.tracks : null);
+
+        const rh = sum.risk_track_frames || {};
+        const low = +(rh.LOW || 0), med = +(rh.MEDIUM || 0), high = +(rh.HIGH || 0);
+        const tot = Math.max(low + med + high, 1);
+        setText("r-low", low); setText("r-medium", med); setText("r-high", high);
+        document.getElementById("bar-low").style.width = (100 * low / tot) + "%";
+        document.getElementById("bar-medium").style.width = (100 * med / tot) + "%";
+        document.getElementById("bar-high").style.width = (100 * high / tot) + "%";
+
+        const lvl = currentLevel(lf);
+        const badge = document.getElementById("risk-badge");
+        badge.textContent = lvl;
+        badge.className = "badge " + lvl.toLowerCase();
+
+        renderEvents(s.recent_events || []);
+        if (s.has_frame) document.getElementById("frame-img").src = "/frame?t=" + Date.now();
+        setText("data-dir", s.data_dir);
+        setText("updated", new Date().toLocaleTimeString());
+      } catch (e) { /* keep last view on transient errors */ }
+    }
+    setInterval(refresh, 2000);
+    refresh();
+  </script>
 </body>
 </html>

@@ -44,6 +44,9 @@ from adas_workbench.visualization.overlay import (  # noqa: E402
     draw_risk,
 )
 
+# Save the latest annotated frame this often (frames) for the live dashboard.
+SNAPSHOT_EVERY = 15
+
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="ADAS Vision Workbench — video demo")
@@ -186,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
             draw_risk(frame, risks)
             draw_frame_number(frame, frame_id)
             writer.write(frame)
+            if frame_id % SNAPSHOT_EVERY == 0:
+                cv2.imwrite(str(logs_dir / "latest_frame.jpg"), frame)
 
             prev_state = {t["track_id"]: t["bbox"] for t in tracks}
             processed += 1

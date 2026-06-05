@@ -1,14 +1,17 @@
 /* ADAS Vision Workbench — dashboard styles (plain CSS, no frameworks).
-   Placeholder for Phase A10; functional layout first, polish later. */
+   Functional layout first; risk colours match the video overlay. */
 
 :root {
   --bg: #0f1115;
   --panel: #1a1d24;
+  --card: #202530;
   --text: #e6e6e6;
+  --muted: #9aa3b2;
+  --border: #2a2e38;
   --accent: #4cc9f0;
-  --risk-low: #2ecc71;
-  --risk-medium: #f1c40f;
-  --risk-high: #e74c3c;
+  --low: #2ecc71;
+  --medium: #f1c40f;
+  --high: #e74c3c;
 }
 
 * { box-sizing: border-box; }
@@ -21,11 +24,130 @@ body {
 }
 
 header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #2a2e38;
+  border-bottom: 1px solid var(--border);
+}
+header h1 { margin: 0; font-size: 1.3rem; }
+.subtitle { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.85rem; }
+.status { color: var(--muted); font-size: 0.8rem; }
+
+main {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-header h1 { margin: 0; font-size: 1.4rem; }
-.subtitle { margin: 0.25rem 0 0; color: #9aa3b2; font-size: 0.9rem; }
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+}
+.panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 
-main { padding: 1.5rem; }
+.frame-panel { grid-column: 1; grid-row: 1 / span 2; }
+.frame-panel img {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+  display: block;
+  min-height: 220px;
+}
+.risk-line {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #10131a;
+}
+.badge.low { background: var(--low); }
+.badge.medium { background: var(--medium); }
+.badge.high { background: var(--high); color: #fff; }
+
+.metrics {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  align-content: start;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.card .k {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.card .v { font-size: 1.25rem; font-weight: 700; }
+
+.risk-panel { grid-column: 2; }
+.risk-bars { display: flex; flex-direction: column; gap: 0.5rem; }
+.risk-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 48px;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.risk-row .lbl { font-weight: 700; }
+.lbl.low { color: var(--low); }
+.lbl.medium { color: var(--medium); }
+.lbl.high { color: var(--high); }
+.bar { background: #11141b; border-radius: 6px; height: 14px; overflow: hidden; }
+.fill { display: block; height: 100%; width: 0; transition: width 0.4s ease; }
+.fill.low { background: var(--low); }
+.fill.medium { background: var(--medium); }
+.fill.high { background: var(--high); }
+.num { text-align: right; color: var(--muted); }
+
+.events-panel { grid-column: 1 / span 2; }
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; }
+tbody tr.high td { color: #ff8a80; }
+tbody tr.medium td { color: #ffe08a; }
+
+footer {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 800px) {
+  main { grid-template-columns: 1fr; }
+  .frame-panel, .metrics, .risk-panel, .events-panel { grid-column: 1; }
+  .frame-panel { grid-row: auto; }
+}
