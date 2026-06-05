@@ -31,6 +31,10 @@ _CLASS_COLORS: dict[str, tuple[int, int, int]] = {
 }
 _DEFAULT_COLOR = (200, 200, 200)
 
+# Lane / drivable-area overlay style.
+_LANE_FILL = (0, 200, 0)
+_LANE_ALPHA = 0.28
+
 
 def _color_for(class_name: str) -> tuple[int, int, int]:
     return _CLASS_COLORS.get(class_name, _DEFAULT_COLOR)
@@ -101,9 +105,21 @@ def draw_tracks(frame: np.ndarray, tracks: list[Track]) -> np.ndarray:
 
 
 def draw_lane(frame: np.ndarray, lane_info: dict[str, Any]) -> np.ndarray:
-    """Overlay the ego-lane polygon / drivable area (Phase A7)."""
-    # TODO(A7)
-    raise NotImplementedError
+    """Overlay the ego-lane polygon / drivable area (Phase A7).
+
+    Translucent green fill + outline. Labelled as an estimate — classical CV,
+    not ground truth.
+    """
+    poly = lane_info.get("ego_lane_polygon")
+    if not poly:
+        return frame
+    pts = np.array(poly, dtype=np.int32)
+    overlay = frame.copy()
+    cv2.fillPoly(overlay, [pts], _LANE_FILL)
+    cv2.addWeighted(overlay, _LANE_ALPHA, frame, 1.0 - _LANE_ALPHA, 0, frame)
+    cv2.polylines(frame, [pts], isClosed=True, color=_LANE_FILL, thickness=2)
+    _put_label(frame, "ego-lane (est.)", (12, 60), scale=0.6, color=(0, 255, 0))
+    return frame
 
 
 def draw_risk(frame: np.ndarray, risk_results: list[dict[str, Any]]) -> np.ndarray:

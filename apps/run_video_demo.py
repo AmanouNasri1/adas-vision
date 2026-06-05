@@ -5,9 +5,9 @@ Usage:
     python apps/run_video_demo.py --input <clip> --device cpu
     python apps/run_video_demo.py --input <clip> --benchmark
 
-Phase A6 adds multi-object tracking: detections are matched across frames into
-persistent track ids, and the boxes/ids are drawn (each id keeps its colour).
-Lane / risk stages follow in later phases. The output directory comes from
+Phase A7 adds a classical-CV ego-lane / drivable-area overlay. Pipeline per
+frame: detect -> track -> estimate lane -> draw (lane, tracks, frame number) ->
+write. Risk scoring follows in A8. The output directory comes from
 configs/paths.yaml (external HDD when mounted, else the in-repo outputs/ folder).
 """
 from __future__ import annotations
@@ -27,6 +27,7 @@ if str(SRC) not in sys.path:
 
 from adas_workbench.input.video_loader import VideoLoader  # noqa: E402
 from adas_workbench.perception.detector import Detector  # noqa: E402
+from adas_workbench.perception.lane_detector import LaneDetector  # noqa: E402
 from adas_workbench.tracking.tracker import Tracker  # noqa: E402
 from adas_workbench.utils.config import (  # noqa: E402
     load_config,
@@ -35,6 +36,7 @@ from adas_workbench.utils.config import (  # noqa: E402
 )
 from adas_workbench.visualization.overlay import (  # noqa: E402
     draw_frame_number,
+    draw_lane,
     draw_tracks,
 )
 
@@ -49,7 +51,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         default="configs",
-        help="Directory holding detector.yaml / tracker.yaml / risk.yaml / paths.yaml.",
+        help="Directory with detector.yaml / tracker.yaml / lane.yaml / risk.yaml / paths.yaml.",
     )
     parser.add_argument(
         "--output",
@@ -91,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     config_dir = Path(args.config_dir)
     detector_cfg = load_config(config_dir / "detector.yaml")
     tracker_cfg = load_config(config_dir / "tracker.yaml")
+    lane_cfg = load_config(config_dir / "lane.yaml") if (config_dir / "lane.yaml").is_file() else {}
     device = select_device(args.device or detector_cfg.get("model", {}).get("device", "auto"))
 
     output_path = (
@@ -101,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Device: {device}")
     detector = Detector(detector_cfg, device=device)
     tracker = Tracker(tracker_cfg)
+    lane_detector = LaneDetector(lane_cfg)
 
     with VideoLoader(input_path) as loader:
         meta = loader.meta
@@ -126,12 +130,16 @@ def main(argv: list[str] | None = None) -> int:
         seen_ids: set[int] = set()
         total = meta.frame_count if meta.frame_count > 0 else None
         for frame_id, frame in tqdm(
-            loader.frames(), total=total, unit="f", desc="Tracking", disable=None
+            loader.frames(), total=total, unit="f", desc="Processing", disable=None
         ):
+            # --- analysis on the clean frame ---
             detections = detector.detect(frame, frame_id)
             tracks = tracker.update(detections, frame_id)
+            lane_info = lane_detector.estimate(frame)
             total_detections += len(detections)
             seen_ids.update(t["track_id"] for t in tracks)
+            # --- overlays (lane underneath, then boxes, then HUD text) ---
+            draw_lane(frame, lane_info)
             draw_tracks(frame, tracks)
             draw_frame_number(frame, frame_id)
             writer.write(frame)

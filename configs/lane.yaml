@@ -1,0 +1,28 @@
+# Lane / drivable-area (classical CV) configuration — loaded via utils/config.py.
+# Honest limits: classical CV — fragile on faded markings, glare, and sharp
+# curves (see docs/limitations.md). A hook is left for a future segmentation model.
+
+# Trapezoid region-of-interest, as fractions of frame width/height. The ego lane
+# is assumed lower-centre; this ROI doubles as the drivable-area fallback when no
+# clear lane lines are found.
+roi:
+  bottom_width: 0.90   # ROI width at the bottom edge (fraction of W)
+  top_width: 0.18      # ROI width at the horizon line (fraction of W)
+  top_y: 0.62          # horizon line (fraction of H from top)
+  bottom_y: 0.97       # bottom of ROI (fraction of H)
+
+edges:
+  blur_kernel: 5       # Gaussian blur size (forced odd)
+  canny_low: 60
+  canny_high: 150
+
+hough:
+  rho: 2               # px
+  theta_deg: 1         # degrees
+  threshold: 25        # min votes
+  min_line_length: 18  # px
+  max_line_gap: 120    # px
+
+lines:
+  min_abs_slope: 0.5   # discard near-horizontal segments
+  max_abs_slope: 6.0   # discard near-vertical noise
