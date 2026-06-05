@@ -1,150 +1,130 @@
 # ADAS Vision Workbench
 
-> A Windows-based computer-vision **ADAS perception workbench**: it ingests a
-> driving video and produces object detection, multi-object tracking,
-> lane/drivable-area estimation, a **pseudo-distance risk score**, event logs,
-> an annotated output video, a benchmark report, and a live FastAPI dashboard.
+A Windows computer-vision **ADAS perception workbench**: it ingests a driving
+video and produces object detection, multi-object tracking, lane / drivable-area
+estimation, a **pseudo-distance risk score** (LOW / MEDIUM / HIGH), event logs,
+an annotated output video, a benchmark report, and a live FastAPI dashboard.
 
-**Status:** 🚧 Under construction — **Phase A2 complete** (tooling + environment
-ready; CUDA PyTorch verified on an RTX 3050). This README is an intentional
-*skeleton*; sections fill in as the phased build progresses (see [Roadmap](#roadmap)).
+![demo](outputs/demo/demo.gif)
 
-> ⚠️ **Honesty note (read this):** distance and time-to-collision (TTC) here are
-> **proxies** derived from 2-D bounding-box geometry — **not** real,
-> depth-based measurements. Real depth-based distance/TTC is planned for the
-> ROS 2 + CARLA port (Project B). This tool never claims true physical distance.
+> ⚠️ **Honesty note:** distance and time-to-collision (TTC) here are **proxies**
+> derived from 2-D bounding-box geometry — **not** real depth-based
+> measurements. Real depth-based distance/TTC is planned for the ROS 2 + CARLA
+> port (Project B). This tool never claims true physical distance.
 
 ---
 
-## Demo
+## What it does
 
-_A ≤90-second annotated demo clip / GIF will live here once the MVP runs._
+A decoupled per-frame pipeline:
 
-`(placeholder — added around Phase A4–A5)`
+**Video → Detection (YOLO11n) → Tracking (IoU) → Lane / drivable-area (classical CV) → Risk (pseudo-distance) → Overlays + Logs + Dashboard**
+
+- **Detection** — YOLO11n, filtered to 8 ADAS classes (person, bicycle, car, motorcycle, bus, truck, traffic light, stop sign).
+- **Tracking** — greedy IoU matching with persistent track IDs (structured for a SORT/Kalman upgrade).
+- **Lane** — ROI + Canny + Hough ego-lane estimate, with a graceful drivable-area fallback.
+- **Risk** — blends closeness, approach, ego-lane overlap, class weight, and a pseudo-TTC into a 0–100 score → LOW / MEDIUM / HIGH.
+- **Outputs** — annotated video, `events.csv` / `frame_metrics.csv` / `scene_summary.json`, a benchmark report, and a live dashboard with human-readable event explanations.
+
+Every module takes plain data in / out with no hidden state, so it ports cleanly to ROS 2 — see [docs/ros2_porting_plan.md](docs/ros2_porting_plan.md).
 
 ---
 
-## Why this exists
+## Quickstart (Windows + PowerShell)
 
-A portfolio/thesis-facing asset demonstrating CV + ML + ADAS competence, designed
-from day one to be **ROS 2-portable**: every module takes plain data in and
-returns plain data out, with no hard coupling, so it can later move to
-ROS 2 + CARLA (Project B).
+Prerequisites: **Python 3.10, Git, FFmpeg** (the Phase A0 `winget` commands are in [CLAUDE.md](CLAUDE.md)).
+
+```powershell
+git clone https://github.com/AmanouNasri1/adas-vision.git
+cd adas-vision
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+> **CPU-only machine?** `requirements.txt` pins the CUDA build. Swap the two `torch`
+> lines for the CPU build from the [PyTorch selector](https://pytorch.org/get-started/locally/), then re-install.
+
+### Run the demo
+
+```powershell
+python apps\run_video_demo.py --input data\sample_videos\test_drive.mp4
+# add --benchmark to also write reports/benchmark_report.md
+# add --device cpu to force CPU
+```
+
+### Launch the dashboard
+
+```powershell
+python apps\run_dashboard.py    # then open http://127.0.0.1:8000
+```
 
 ---
 
-## Architecture (data flow)
+## Architecture
 
 ```
 Driving Video → Video Loader → Object Detection → Object Tracking
   → Lane / Drivable-Area → Risk Estimation → Outputs
        ├── annotated video
-       ├── event logs (events.csv, frame_metrics.csv)
-       ├── scene_summary.json
+       ├── event logs (events.csv, frame_metrics.csv, scene_summary.json)
        ├── dashboard
        └── benchmark report
 ```
 
-Full module responsibilities: see [`docs/architecture.md`](docs/architecture.md)
-_(added in Phase A3)_.
+Full module responsibilities + per-frame data contracts: [docs/architecture.md](docs/architecture.md).
 
 ---
 
-## Installation
+## Results
 
-Windows + PowerShell. First install the prerequisites — **Python 3.10, Git, FFmpeg**
-(the Phase A0 `winget` commands are in [`CLAUDE.md`](CLAUDE.md)).
+Sample 30 s urban clip (640×360), NVIDIA RTX 3050 Laptop GPU:
 
-```powershell
-# 1) Clone and enter the repo
-git clone https://github.com/AmanouNasri1/adas-vision.git
-cd adas-vision
+| Metric | Value |
+| --- | --- |
+| Device | CUDA (RTX 3050) |
+| Throughput (end-to-end) | ~31 FPS |
+| Processed frames | 900 |
+| Total detections | 4,865 |
+| Unique tracks | 191 |
+| Risk track-frames (LOW / MED / HIGH) | 2,453 / 1,735 / 22 |
+| High-risk (`brake_warning`) events | 22 |
 
-# 2) Create and activate a virtual environment (kept on C:)
-py -3.10 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+Generated by `--benchmark` → [reports/benchmark_report.md](reports/benchmark_report.md).
 
-# 3) Install dependencies (pulls the CUDA 12.4 PyTorch build, ~2.5 GB)
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-> **CPU-only machine?** `requirements.txt` pins the CUDA build for an NVIDIA GPU.
-> Swap the two `torch` lines for the CPU build from the
-> [PyTorch selector](https://pytorch.org/get-started/locally/), then re-run step 3.
+![highlight — a close in-lane vehicle flagged HIGH risk](outputs/demo/highlight.png)
 
 ---
 
-## Usage
+## Limitations (stated honestly)
 
-_The main demo will run with a single command once the pipeline exists:_
+- **No real depth.** Distance / TTC are 2-D bounding-box proxies, not metres / seconds.
+- **Classical-CV lanes.** Fragile on faded markings, glare, low light, and sharp curves.
+- **Nano detector + greedy IoU tracker.** Small / distant / occluded objects can be missed; IDs can switch under heavy occlusion.
 
-```powershell
-# (coming in Phase A4+)
-# python apps/run_video_demo.py --input data/sample_videos/test_drive.mp4
-```
-
----
-
-## Outputs
-
-| Artifact | Location | Notes |
-| --- | --- | --- |
-| Annotated video | `E:\adas_outputs\videos\` | Large run outputs go to the external HDD |
-| Event log | `events.csv` | One row per risk event |
-| Frame metrics | `frame_metrics.csv` | Per-frame stats |
-| Scene summary | `scene_summary.json` | Run-level summary |
-| Demo assets | `outputs/demo/` | Small clip / GIF / screenshots committed for GitHub |
-
----
-
-## Benchmark
-
-_A results table (avg FPS, total detections, unique tracks, high-risk events, …)
-will live here once benchmark mode lands (Phase A11)._
-
----
-
-## Limitations
-
-- **No real depth.** Distance/TTC are 2-D bounding-box proxies, not physical
-  measurements. (Real depth comes with CARLA in Project B.)
-- **Lane detection is classical CV** (edges + Hough lines), not learned
-  segmentation — expect failures in poor lighting, faded markings, sharp curves.
-- Detection/tracking quality is bounded by a small YOLO model chosen for speed.
-
-Full, honest write-up: [`docs/limitations.md`](docs/limitations.md) _(Phase A8+)_.
-
----
-
-## ROS 2 porting plan
-
-This workbench is the Windows precursor to a ROS 2 + CARLA system (Project B).
-The module → ROS 2 node mapping lives in
-[`docs/ros2_porting_plan.md`](docs/ros2_porting_plan.md) _(Phase A3)_.
+Full write-up: [docs/limitations.md](docs/limitations.md).
 
 ---
 
 ## Roadmap
 
-Built in strict phases (see [`CLAUDE.md`](CLAUDE.md) for the full plan):
-
-| Phase | Milestone |
+| Phase | Status |
 | --- | --- |
-| A0 | ✅ Install tools (Git, Python 3.10, VS Code, FFmpeg) |
-| A1 | ✅ Repo + virtual environment |
-| A2 | ✅ Install ML/CV packages |
-| **A3** | **Repository structure + docs ⬅ next** |
-| A4 | Video input pipeline (no AI) |
-| A5 | Object detection (YOLO) |
-| A6 | Object tracking |
-| A7 | Lane / drivable-area |
-| A8 | Risk estimation (pseudo-distance) |
-| A9 | Event logging |
-| A10 | Web dashboard (FastAPI) |
-| A11 | Benchmark mode |
-| A12 | ONNX export & comparison (optional) |
-| A13 | LLM scene explainer (optional) |
+| A0–A2 — tools, env, dependencies | ✅ |
+| A3 — repo structure + docs | ✅ |
+| A4 — video I/O pipeline | ✅ |
+| A5 — object detection (YOLO11n) | ✅ |
+| A6 — object tracking (IoU) | ✅ |
+| A7 — lane / drivable-area | ✅ |
+| A8 — risk (pseudo-distance) | ✅ |
+| A9 — event logging | ✅ |
+| A10 — FastAPI dashboard | ✅ |
+| A11 — benchmark mode | ✅ |
+| A13 — scene explainer (template) | ✅ |
+| A12 — ONNX export & comparison | ⬜ optional |
+
+**Next (Project B):** ROS 2 + CARLA port with real depth-based distance / TTC.
 
 ---
 
