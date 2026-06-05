@@ -2,12 +2,14 @@
 
 Usage:
     python apps/run_video_demo.py --input data/sample_videos/test_drive.mp4
+    python apps/run_video_demo.py --input <clip> --device cpu
     python apps/run_video_demo.py --input <clip> --benchmark
 
-Phase A4 wires the no-AI I/O path: read the video (preserving FPS), overlay the
-frame number, and write an annotated output video. Detection / tracking / lane /
-risk stages are added in later phases. The output directory comes from
-configs/paths.yaml (external HDD when mounted, else the in-repo outputs/ folder).
+Phase A5 adds YOLO object detection: each frame is detected (filtered to the
+ADAS classes), boxes/labels/confidences are drawn, then the frame number is
+overlaid and the frame is written out. Tracking / lane / risk stages follow in
+later phases. The output directory comes from configs/paths.yaml (external HDD
+when mounted, else the in-repo outputs/ folder).
 """
 from __future__ import annotations
 
@@ -25,8 +27,16 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from adas_workbench.input.video_loader import VideoLoader  # noqa: E402
-from adas_workbench.utils.config import load_config, resolve_output_dir  # noqa: E402
-from adas_workbench.visualization.overlay import draw_frame_number  # noqa: E402
+from adas_workbench.perception.detector import Detector  # noqa: E402
+from adas_workbench.utils.config import (  # noqa: E402
+    load_config,
+    resolve_output_dir,
+    select_device,
+)
+from adas_workbench.visualization.overlay import (  # noqa: E402
+    draw_detections,
+    draw_frame_number,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -45,6 +55,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         default=None,
         help="Output annotated-video path. Defaults to the configured outputs dir.",
+    )
+    parser.add_argument(
+        "--device",
+        default=None,
+        choices=["auto", "cpu", "cuda"],
+        help="Override compute device (default: from detector.yaml).",
     )
     parser.add_argument(
         "--benchmark",
@@ -73,10 +89,16 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     config_dir = Path(args.config_dir)
+    detector_cfg = load_config(config_dir / "detector.yaml")
+    device = select_device(args.device or detector_cfg.get("model", {}).get("device", "auto"))
+
     output_path = (
         Path(args.output) if args.output else _default_output_path(input_path, config_dir)
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"Device: {device}")
+    detector = Detector(detector_cfg, device=device)
 
     with VideoLoader(input_path) as loader:
         meta = loader.meta
@@ -98,10 +120,14 @@ def main(argv: list[str] | None = None) -> int:
 
         start = time.perf_counter()
         processed = 0
+        total_detections = 0
         total = meta.frame_count if meta.frame_count > 0 else None
         for frame_id, frame in tqdm(
-            loader.frames(), total=total, unit="f", desc="Annotating", disable=None
+            loader.frames(), total=total, unit="f", desc="Detecting", disable=None
         ):
+            detections = detector.detect(frame, frame_id)
+            total_detections += len(detections)
+            draw_detections(frame, detections)
             draw_frame_number(frame, frame_id)
             writer.write(frame)
             processed += 1
@@ -112,8 +138,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"\nDone.\n"
         f"Output: {output_path}\n"
-        f"Frames: {processed} processed in {elapsed:.1f}s "
-        f"(~{avg_fps:.1f} fps throughput)"
+        f"Frames: {processed} | Detections: {total_detections} | "
+        f"{elapsed:.1f}s (~{avg_fps:.1f} fps, {device})"
     )
     return 0
 

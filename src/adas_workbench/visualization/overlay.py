@@ -18,6 +18,23 @@ Detection = dict[str, Any]
 
 _FONT = cv2.FONT_HERSHEY_SIMPLEX
 
+# Stable BGR colour per ADAS class (boxes + label backgrounds).
+_CLASS_COLORS: dict[str, tuple[int, int, int]] = {
+    "person": (0, 200, 0),
+    "bicycle": (0, 200, 200),
+    "car": (255, 128, 0),
+    "motorcycle": (0, 165, 255),
+    "bus": (255, 0, 0),
+    "truck": (180, 0, 180),
+    "traffic light": (0, 255, 255),
+    "stop sign": (0, 0, 255),
+}
+_DEFAULT_COLOR = (200, 200, 200)
+
+
+def _color_for(class_name: str) -> tuple[int, int, int]:
+    return _CLASS_COLORS.get(class_name, _DEFAULT_COLOR)
+
 
 def _put_label(
     frame: np.ndarray,
@@ -39,8 +56,23 @@ def draw_frame_number(frame: np.ndarray, frame_id: int) -> np.ndarray:
 
 def draw_detections(frame: np.ndarray, detections: list[Detection]) -> np.ndarray:
     """Draw class-labelled, confidence-annotated boxes (Phase A5)."""
-    # TODO(A5)
-    raise NotImplementedError
+    for det in detections:
+        x1, y1, x2, y2 = (int(round(v)) for v in det["bbox_xyxy"])
+        color = _color_for(det["class_name"])
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+        label = f'{det["class_name"]} {det["confidence"]:.2f}'
+        (tw, th), baseline = cv2.getTextSize(label, _FONT, 0.5, 1)
+        # Keep the label on-screen even when the box hugs the top edge.
+        y_top = max(y1, th + baseline + 4)
+        cv2.rectangle(
+            frame, (x1, y_top - th - baseline - 4), (x1 + tw + 4, y_top), color, -1
+        )
+        cv2.putText(
+            frame, label, (x1 + 2, y_top - baseline - 2), _FONT, 0.5,
+            (0, 0, 0), 1, cv2.LINE_AA,
+        )
+    return frame
 
 
 def draw_tracks(frame: np.ndarray, tracks: list[Track]) -> np.ndarray:
