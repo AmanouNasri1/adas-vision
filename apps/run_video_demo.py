@@ -4,20 +4,29 @@ Usage:
     python apps/run_video_demo.py --input data/sample_videos/test_drive.mp4
     python apps/run_video_demo.py --input <clip> --benchmark
 
-The pipeline is wired up incrementally across Phases A4-A11. This entry point
-parses arguments and locates the package; the per-stage logic lives in the
-``src/adas_workbench`` modules.
+Phase A4 wires the no-AI I/O path: read the video (preserving FPS), overlay the
+frame number, and write an annotated output video. Detection / tracking / lane /
+risk stages are added in later phases. The output directory comes from
+configs/paths.yaml (external HDD when mounted, else the in-repo outputs/ folder).
 """
 from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
+
+import cv2
+from tqdm import tqdm
 
 # --- Make src/ importable when run as a plain script (no install needed) ---
 SRC = Path(__file__).resolve().parent.parent / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+from adas_workbench.input.video_loader import VideoLoader  # noqa: E402
+from adas_workbench.utils.config import load_config, resolve_output_dir  # noqa: E402
+from adas_workbench.visualization.overlay import draw_frame_number  # noqa: E402
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -30,7 +39,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         default="configs",
-        help="Directory holding detector.yaml / tracker.yaml / risk.yaml.",
+        help="Directory holding detector.yaml / tracker.yaml / risk.yaml / paths.yaml.",
     )
     parser.add_argument(
         "--output",
@@ -45,15 +54,68 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _default_output_path(input_path: Path, config_dir: Path) -> Path:
+    """Annotated-output path from configs/paths.yaml, named after the input clip."""
+    paths_cfg = None
+    paths_yaml = config_dir / "paths.yaml"
+    if paths_yaml.is_file():
+        paths_cfg = load_config(paths_yaml)
+    out_dir = resolve_output_dir(paths_cfg, kind="videos")
+    return out_dir / f"{input_path.stem}_annotated.mp4"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    # Fail clearly if the input is missing (CLAUDE.md §8: clear errors, not stack traces).
-    if not Path(args.input).is_file():
-        print(f"ERROR: input video not found: {args.input}", file=sys.stderr)
+
+    input_path = Path(args.input)
+    if not input_path.is_file():
+        print(f"ERROR: input video not found: {input_path}", file=sys.stderr)
         return 2
-    # TODO(A4+): build the pipeline — VideoLoader -> Detector -> Tracker ->
-    #            LaneDetector -> RiskEstimator -> overlay -> writer + EventLogger.
-    raise NotImplementedError("The demo pipeline is wired up starting in Phase A4.")
+
+    config_dir = Path(args.config_dir)
+    output_path = (
+        Path(args.output) if args.output else _default_output_path(input_path, config_dir)
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with VideoLoader(input_path) as loader:
+        meta = loader.meta
+        print(
+            f"Input : {meta.path}\n"
+            f"        {meta.width}x{meta.height} @ {meta.fps:.2f} fps, "
+            f"{meta.frame_count} frames (reported)"
+        )
+
+        writer = cv2.VideoWriter(
+            str(output_path),
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            meta.fps,
+            (meta.width, meta.height),
+        )
+        if not writer.isOpened():
+            print(f"ERROR: could not open VideoWriter for {output_path}.", file=sys.stderr)
+            return 3
+
+        start = time.perf_counter()
+        processed = 0
+        total = meta.frame_count if meta.frame_count > 0 else None
+        for frame_id, frame in tqdm(
+            loader.frames(), total=total, unit="f", desc="Annotating", disable=None
+        ):
+            draw_frame_number(frame, frame_id)
+            writer.write(frame)
+            processed += 1
+        writer.release()
+        elapsed = time.perf_counter() - start
+
+    avg_fps = processed / elapsed if elapsed > 0 else 0.0
+    print(
+        f"\nDone.\n"
+        f"Output: {output_path}\n"
+        f"Frames: {processed} processed in {elapsed:.1f}s "
+        f"(~{avg_fps:.1f} fps throughput)"
+    )
+    return 0
 
 
 if __name__ == "__main__":

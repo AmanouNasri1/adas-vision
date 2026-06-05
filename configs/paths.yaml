@@ -1,0 +1,9 @@
+# Output locations — loaded via utils/config.py (resolve_output_dir).
+# Large/long outputs go to the external HDD (E:) when it is mounted; otherwise
+# the pipeline falls back to the in-repo outputs/ folder (media is git-ignored).
+# This mirrors the CUDA->CPU fallback: never crash if E: is absent.
+outputs:
+  external_base: "D:/adas_outputs"   # preferred: external 2 TB HDD
+  local_base: "outputs"              # fallback: in-repo outputs/ (on C:)
+  videos_subdir: "videos"
+  logs_subdir: "logs"

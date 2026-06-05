@@ -1,11 +1,12 @@
-"""Configuration loading and runtime device selection.
+"""Configuration loading, runtime device selection, and output-path resolution.
 
-The single place that reads YAML config and picks the compute device, so no
-other module hard-codes paths, thresholds, or "cuda" vs "cpu". Plain data out:
-``load_config`` returns a dict; ``select_device`` returns a string.
+The single place that reads YAML config, picks the compute device, and decides
+where outputs go — so no other module hard-codes paths, thresholds, or
+"cuda" vs "cpu". Plain data out: dicts, strings, and Paths.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -47,3 +48,33 @@ def select_device(prefer: str = "auto") -> str:
     except Exception:
         pass
     return "cpu"
+
+
+def _external_available(base: str | Path) -> bool:
+    """True if the drive root of ``base`` exists (e.g. ``E:\\`` is mounted)."""
+    try:
+        anchor = Path(base).anchor  # e.g. "E:\\"
+        return bool(anchor) and os.path.exists(anchor)
+    except Exception:
+        return False
+
+
+def resolve_output_dir(paths_config: dict[str, Any] | None, kind: str = "videos") -> Path:
+    """Return a writable output directory for ``kind`` ("videos" or "logs").
+
+    Prefers the external HDD base (e.g. ``D:\\adas_outputs``) from
+    ``configs/paths.yaml`` when that drive is mounted; otherwise falls back to
+    the in-repo ``outputs/`` folder so the pipeline never crashes when E: is
+    absent (mirrors the CUDA->CPU fallback). The chosen directory is created.
+    """
+    outputs = (paths_config or {}).get("outputs", {})
+    external_base = outputs.get("external_base", "D:/adas_outputs")
+    local_base = outputs.get("local_base", "outputs")
+    subdir = outputs.get(f"{kind}_subdir", kind)
+
+    if _external_available(external_base):
+        target = Path(external_base) / subdir
+    else:
+        target = Path(local_base) / subdir
+    target.mkdir(parents=True, exist_ok=True)
+    return target
