@@ -1,0 +1,37 @@
+# Risk / pseudo-distance estimation configuration — loaded via utils/config.py.
+#
+# IMPORTANT: distance and TTC here are 2-D bounding-box PROXIES, never real
+# depth-based measurements. See docs/limitations.md. Real depth comes in
+# Project B (CARLA).
+
+# Risk score (0-100) -> level thresholds.
+# CLAUDE.md: 0-30 LOW, 31-70 MEDIUM, 71-100 HIGH.
+levels:
+  low_max: 30       # 0  .. 30  -> LOW
+  medium_max: 70    # 31 .. 70  -> MEDIUM
+                    # 71 .. 100 -> HIGH
+
+# Relative weight per object class (more vulnerable -> higher weight).
+# CLAUDE.md ordering: person > bicycle > car > traffic light.
+class_weights:
+  person: 1.0
+  bicycle: 0.9
+  motorcycle: 0.85
+  car: 0.7
+  bus: 0.7
+  truck: 0.7
+  traffic light: 0.3
+  stop sign: 0.3
+  default: 0.5
+
+# Contribution of each cue to the raw risk (before scaling to 0-100).
+cues:
+  bbox_area_weight: 0.35     # closeness proxy: larger box ~ closer
+  bbox_growth_weight: 0.25   # approach cue: fast-growing box ~ approaching
+  lane_overlap_weight: 0.25  # relevance: object inside the ego lane
+  ttc_proxy_weight: 0.15     # pseudo-TTC: bbox_height / bbox_height_change_rate
+
+# Pseudo-TTC proxy guardrails (these are NOT real seconds).
+ttc_proxy:
+  min_height_change: 0.5     # px/frame; below this, treat as "not approaching"
+  clamp_seconds: 10.0        # cap the proxy to a sane range

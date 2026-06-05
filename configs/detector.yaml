@@ -1,0 +1,32 @@
+# Object detector (YOLO) configuration — loaded via utils/config.py.
+# No magic numbers in logic files; tune detection behaviour here.
+
+model:
+  # Ultralytics weights. yolo11n = nano (fast, MVP default); yolov8n.pt also works.
+  weights: yolo11n.pt
+  # Inference image size (square). 640 is the YOLO default.
+  imgsz: 640
+  # Device: "auto" -> CUDA if available else CPU (detected at runtime, logged).
+  device: auto
+  # FP16 half precision (only effective on CUDA).
+  half: false
+
+inference:
+  # Minimum confidence to keep a detection (0-1).
+  conf_threshold: 0.25
+  # IoU threshold for non-max suppression (0-1).
+  iou_threshold: 0.45
+  # Max detections kept per frame.
+  max_detections: 300
+
+# ADAS-relevant COCO classes to KEEP (all others are filtered out).
+# Names must match the model's class names exactly.
+allowed_classes:
+  - person
+  - bicycle
+  - car
+  - motorcycle
+  - bus
+  - truck
+  - traffic light
+  - stop sign

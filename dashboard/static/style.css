@@ -1,0 +1,31 @@
+/* ADAS Vision Workbench — dashboard styles (plain CSS, no frameworks).
+   Placeholder for Phase A10; functional layout first, polish later. */
+
+:root {
+  --bg: #0f1115;
+  --panel: #1a1d24;
+  --text: #e6e6e6;
+  --accent: #4cc9f0;
+  --risk-low: #2ecc71;
+  --risk-medium: #f1c40f;
+  --risk-high: #e74c3c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, "Segoe UI", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #2a2e38;
+}
+
+header h1 { margin: 0; font-size: 1.4rem; }
+.subtitle { margin: 0.25rem 0 0; color: #9aa3b2; font-size: 0.9rem; }
+
+main { padding: 1.5rem; }

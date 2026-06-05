@@ -1,0 +1,2 @@
+# Run logs (events.csv, frame_metrics.csv, scene_summary.json) are written here
+# and git-ignored; this .gitkeep only preserves the folder.

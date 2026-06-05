@@ -39,16 +39,19 @@ data/datasets/
 *.mkv
 *.webm
 
-# --- Generated outputs (large; real run outputs go to E:\adas_outputs) ---
-outputs/
-# Exception: a few small, hand-picked demo assets are meant for GitHub
-# (a short annotated clip / GIF / screenshots). Commit those explicitly with:
-#     git add -f outputs/demo/<file>
-# so the README demo can render on GitHub.
+# --- Generated outputs (real/large run outputs go to E:\adas_outputs) ---
+# Keep the in-repo folder structure (.gitkeep) but ignore generated artifacts.
+outputs/videos/*
+outputs/logs/*
+!.gitkeep
+# Small, hand-picked demo assets for GitHub live in outputs/demo/ and ARE tracked
+# (a GIF / screenshots). A short .mp4 clip is still caught by the video rules above,
+# so commit it explicitly when needed:  git add -f outputs/demo/<clip>.mp4
 
 # --- OS / editor cruft ---
 .vscode/
 .idea/
+.claude/settings.local.json
 *.code-workspace
 Thumbs.db
 ehthumbs.db

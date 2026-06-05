@@ -1,0 +1,14 @@
+# Multi-object tracker configuration — loaded via utils/config.py.
+# MVP is IoU-based matching; structured so a SORT/Kalman upgrade can drop in.
+
+tracker:
+  # Method. "iou" = greedy IoU matching (MVP). Future: "sort", "bytetrack".
+  method: iou
+  # Minimum IoU to match a detection to an existing track (0-1).
+  iou_match_threshold: 0.3
+  # Frames a track may go unmatched before it is dropped.
+  max_missed_frames: 30
+  # Consecutive hits before a track is considered "confirmed".
+  min_hits: 3
+  # First id assigned to a new track (increments from here).
+  first_track_id: 1
