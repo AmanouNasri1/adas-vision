@@ -251,18 +251,24 @@ counts, `brake_warning` events, max score), and Warning episodes.
 
 ---
 
-## Phase A12 — ONNX export & comparison (optional, NOT yet implemented)
+## Phase A12 — ONNX export & comparison
 
-**Prerequisites:** A2 **plus** a new install: `pip install onnxruntime`.
+**Prerequisites:** A2 **plus** `onnx`, `onnxruntime`, `onnxslim` (now pinned in
+`requirements.txt`, so they install with the rest).
 
-**Run (planned):**
+**Run:**
 ```powershell
-yolo export model=yolo11n.pt format=onnx imgsz=640
-# then an ONNX Runtime inference path is added behind the detector
+python apps\benchmark_onnx.py             # exports yolo11n.onnx, benchmarks, writes the report
+python apps\benchmark_onnx.py --runs 200  # more runs for a steadier average
 ```
 
-**Verify (DoD):** a PyTorch-vs-ONNX FPS table is added to the README.
-**Status:** pending — needs the `onnxruntime` install to be approved.
+**Verify (DoD = PyTorch-vs-ONNX table):** the console, the README, and
+[`reports/onnx_benchmark.md`](reports/onnx_benchmark.md) show an FPS table for
+PyTorch (CUDA), PyTorch (CPU), and ONNX Runtime (CPU).
+
+**Use ONNX in the demo (optional):** set `weights: yolo11n.onnx` in
+`configs\detector.yaml` — the detector loads it through Ultralytics' ONNX backend
+(no code change needed).
 
 ---
 
