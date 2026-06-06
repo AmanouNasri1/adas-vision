@@ -9,12 +9,16 @@
 # Backend: "classical" (Canny + Hough, default) or "learned" (a fine-tuned
 # YOLO-seg drivable-area model — see training/colab_lane_training.md). "learned"
 # falls back to classical if the model file is missing or returns nothing.
-method: classical
+method: learned
 
 learned:
   model_path: models/lane_seg.pt   # drop your trained .pt / .onnx weights here
   imgsz: 640
   conf: 0.25
+
+# The classical backend runs its CV ops at this fraction of frame size for speed
+# (lane shape is unaffected; the polygon is scaled back to full resolution).
+process_scale: 0.5
 
 roi:
   bottom_width: 0.90   # ROI width at the bottom edge (fraction of W)
@@ -37,3 +41,17 @@ hough:
 lines:
   min_abs_slope: 0.5   # discard near-horizontal segments
   max_abs_slope: 6.0   # discard near-vertical noise
+
+# White / yellow lane-marking colour masks, fused with the edge map so the
+# detector locks onto actual paint instead of random clutter.
+color:
+  enabled: true
+  white_l_min: 200             # HLS lightness threshold for white markings
+  yellow_hls_min: [15, 90, 80]
+  yellow_hls_max: [40, 255, 255]
+
+# Temporal smoothing: exponentially average each lane edge across frames and keep
+# the last good edge briefly through dropouts -> a stable, non-flickering overlay.
+smoothing:
+  alpha: 0.3        # EMA weight for the new fit (lower = smoother, laggier)
+  max_misses: 12    # keep a lane edge this many frames after it was last seen

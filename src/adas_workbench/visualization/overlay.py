@@ -33,7 +33,8 @@ _DEFAULT_COLOR = (200, 200, 200)
 
 # Lane / drivable-area overlay style.
 _LANE_FILL = (0, 200, 0)
-_LANE_ALPHA = 0.28
+_LANE_LINE = (0, 255, 255)   # bright yellow lane boundaries
+_LANE_ALPHA = 0.22
 
 # Risk-level colours (BGR): green / amber / red.
 _RISK_COLORS: dict[str, tuple[int, int, int]] = {
@@ -124,7 +125,12 @@ def draw_lane(frame: np.ndarray, lane_info: dict[str, Any]) -> np.ndarray:
     overlay = frame.copy()
     cv2.fillPoly(overlay, [pts], _LANE_FILL)
     cv2.addWeighted(overlay, _LANE_ALPHA, frame, 1.0 - _LANE_ALPHA, 0, frame)
-    cv2.polylines(frame, [pts], isClosed=True, color=_LANE_FILL, thickness=2)
+    # Emphasize the left & right lane boundaries as bright lines.
+    if len(pts) == 4:
+        cv2.line(frame, tuple(pts[0]), tuple(pts[1]), _LANE_LINE, 3, cv2.LINE_AA)
+        cv2.line(frame, tuple(pts[3]), tuple(pts[2]), _LANE_LINE, 3, cv2.LINE_AA)
+    else:
+        cv2.polylines(frame, [pts], isClosed=True, color=_LANE_LINE, thickness=2)
     _put_label(frame, "ego-lane (est.)", (12, 60), scale=0.6, color=(0, 255, 0))
     return frame
 
