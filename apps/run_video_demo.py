@@ -201,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Device: {device}")
     detector = Detector(detector_cfg, device=device)
     tracker = Tracker(tracker_cfg)
-    lane_detector = LaneDetector(lane_cfg)
+    lane_detector = LaneDetector(lane_cfg, device=device)
     logger = EventLogger(logs_dir)
 
     with VideoLoader(input_path) as loader:

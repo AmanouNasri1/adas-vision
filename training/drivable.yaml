@@ -1,0 +1,11 @@
+# Ultralytics segmentation dataset config (TEMPLATE).
+# Edit the paths/classes to match your exported dataset, then pass it as
+# `data=` to model.train(...) on Colab. See training/colab_lane_training.md.
+
+path: /content/datasets/drivable   # dataset root (on Colab)
+train: images/train                # images dir (labels/ is found alongside)
+val: images/val
+
+names:
+  0: drivable
+  # 1: alternative   # uncomment if your dataset separates direct vs alternative drivable

@@ -5,6 +5,17 @@
 # Trapezoid region-of-interest, as fractions of frame width/height. The ego lane
 # is assumed lower-centre; this ROI doubles as the drivable-area fallback when no
 # clear lane lines are found.
+
+# Backend: "classical" (Canny + Hough, default) or "learned" (a fine-tuned
+# YOLO-seg drivable-area model — see training/colab_lane_training.md). "learned"
+# falls back to classical if the model file is missing or returns nothing.
+method: classical
+
+learned:
+  model_path: models/lane_seg.pt   # drop your trained .pt / .onnx weights here
+  imgsz: 640
+  conf: 0.25
+
 roi:
   bottom_width: 0.90   # ROI width at the bottom edge (fraction of W)
   top_width: 0.18      # ROI width at the horizon line (fraction of W)

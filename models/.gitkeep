@@ -1,0 +1,3 @@
+# Drop trained lane / drivable-area weights here, e.g. lane_seg.pt or lane_seg.onnx,
+# then set `method: learned` in configs/lane.yaml.
+# Model files (*.pt, *.onnx) are git-ignored; this .gitkeep preserves the folder.
